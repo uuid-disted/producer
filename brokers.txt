@@ -1,0 +1,2 @@
+amqp://guest:guest@10.0.0.2:5672/
+amqp://guest:guest@10.0.0.2:5673/
