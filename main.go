@@ -12,20 +12,19 @@ import (
 func main() {
 	brokersFile := flag.String("f", "brokers.txt", "The file containing host address of RabbitMQ brokers IP")
 	uuidNumber := flag.Int("n", 1000, "The number of UUIDs that must be generated overall")
-	workerCount := flag.Int("w", 2, "The number of workers")
 
 	flag.Parse()
 
-	brokerHosts, err := readBrokersFile(*brokersFile)
+	brokersHost, err := readBrokersFile(*brokersFile)
 	if err != nil {
 		fmt.Printf("Error reading brokers file: %v\n", err)
 		return
 	}
 
-	app := app.NewApplication(brokerHosts)
+	app := app.NewApplication(brokersHost)
 
 	// Run the application
-	err = app.Run("uuids", *uuidNumber, *workerCount)
+	err = app.Run("uuids", *uuidNumber)
 	if err != nil {
 		fmt.Printf("Error running generation process: %v\n", err)
 	} else {

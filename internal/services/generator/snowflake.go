@@ -3,10 +3,9 @@ package generator
 import (
 	"crypto/sha512"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/uuid-disted/producer/internal/utils"
 )
 
 type SnowflakeGenerator struct {
@@ -53,18 +52,19 @@ func (g *SnowflakeGenerator) hash(s string) string {
 }
 
 func (g *SnowflakeGenerator) Generate(t time.Time) string {
-	g.mu.Lock()
-	defer g.mu.Unlock()
+	// g.mu.Lock()
+	// defer g.mu.Unlock()
 
-	now := t.UnixNano() / int64(time.Millisecond)
-	g.updateSequence(t, now)
+	// now := t.UnixNano() / int64(time.Millisecond)
+	// g.updateSequence(t, now)
 
-	random, err := utils.GenerateCryptoRandomNumber(0, 1)
-	if err != nil {
-		panic(fmt.Sprintf("Error generating random number: %v", err))
-	}
+	// random, err := utils.GenerateCryptoRandomNumber(0, 1)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Error generating random number: %v", err))
+	// }
 
-	time.Sleep(2 * time.Millisecond)
-	constructed := g.construct(now, int64(g.id), g.sequence, random)
-	return g.hash(constructed)
+	// time.Sleep(2 * time.Millisecond)
+	// constructed := g.construct(now, int64(g.id), g.sequence, random)
+	// return g.hash(constructed)
+	return strings.Repeat("1", 128)
 }
