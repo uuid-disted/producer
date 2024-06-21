@@ -1,0 +1,15 @@
+services:
+  vscode:
+    container_name: uuid-disted_producer_vscode
+    build:
+      context: .
+    volumes:
+      - ..:/workspaces/producer:cached
+    networks:
+      - uuid-disted_producer_network
+    env_file:
+      - .env
+
+networks:
+  uuid-disted_producer_network:
+    driver: bridge
