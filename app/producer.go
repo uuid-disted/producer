@@ -9,16 +9,29 @@ import (
 	"github.com/uuid-disted/producer/internal/services/generator"
 )
 
+type Message = string
+
+type ApplicationConfig struct {
+	UseGeneratorBuffer bool
+	UseRandom          bool
+}
+
 type Application struct {
 	brokers []*broker.RabbitMQBroker
 	gen     generator.UUIDGenerator
+	config  ApplicationConfig
 }
 
-func NewApplication(brokersHost []string) *Application {
-	epoch := time.Now()
+func NewApplication(brokersHost []string, config ApplicationConfig) *Application {
 	app := &Application{
 		brokers: make([]*broker.RabbitMQBroker, len(brokersHost)),
-		gen:     generator.New(1, epoch),
+		gen: generator.NewSnowflakeGenerator(generator.SnowflakeGeneratorConfig{
+			ID:        1,
+			Epoch:     time.Now(),
+			UseRandom: config.UseRandom,
+			UseBuffer: config.UseGeneratorBuffer,
+		}),
+		config: config,
 	}
 
 	for i, host := range brokersHost {
@@ -48,7 +61,12 @@ func (app *Application) Run(queueName string, numUUIDs int) error {
 
 		go func() {
 			for i := 0; i < numUUIDs/workerCount; i++ {
-				uuids <- app.gen.Generate(time.Now())
+				random, err := app.gen.Generate(time.Now())
+				if err != nil {
+					i -= 1
+					continue
+				}
+				uuids <- random
 			}
 			close(uuids)
 		}()

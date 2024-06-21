@@ -1,43 +1,69 @@
 package generator
 
 import (
+	"crypto/rand"
 	"crypto/sha512"
 	"fmt"
-	"strings"
-	"sync"
+	"math/big"
 	"time"
 )
 
 type SnowflakeGenerator struct {
-	mu            sync.Mutex
-	id            int
-	epoch         time.Time
-	sequence      int64
-	lastTimeStamp int64
+	ID            int
+	Epoch         time.Time
+	Sequence      int64
+	LastTimeStamp int64
+	UseChannel    bool
+	BufferChan    chan int64
+	UseRandom     bool
 }
 
-func New(id int, epoch time.Time) *SnowflakeGenerator {
-	return &SnowflakeGenerator{
-		id:    id,
-		epoch: epoch,
+type SnowflakeGeneratorConfig struct {
+	ID        int
+	Epoch     time.Time
+	UseRandom bool
+	UseBuffer bool
+}
+
+func NewSnowflakeGenerator(config SnowflakeGeneratorConfig) *SnowflakeGenerator {
+	gen := &SnowflakeGenerator{
+		ID:         config.ID,
+		Epoch:      config.Epoch,
+		UseChannel: config.UseBuffer,
+		UseRandom:  config.UseRandom,
 	}
+
+	if gen.UseRandom && gen.UseChannel {
+		gen.BufferChan = make(chan int64, 1000)
+		go func() {
+			for {
+				n, err := gen.GetRandomNumber()
+				if err != nil {
+					continue
+				}
+				gen.BufferChan <- n
+			}
+		}()
+	}
+
+	return gen
 }
 
-func (g *SnowflakeGenerator) updateSequence(t time.Time, now int64) {
-	if g.lastTimeStamp == now {
-		g.sequence = (g.sequence + 1) & 0xFFF
-		if g.sequence == 0 {
-			for now <= g.lastTimeStamp {
+func (gen *SnowflakeGenerator) updateSequence(t time.Time, now int64) {
+	if gen.LastTimeStamp == now {
+		gen.Sequence = (gen.Sequence + 1) & 0xFFF
+		if gen.Sequence == 0 {
+			for now <= gen.LastTimeStamp {
 				now = t.UnixNano() / int64(time.Millisecond)
 			}
 		}
 	} else {
-		g.sequence = 0
+		gen.Sequence = 0
 	}
-	g.lastTimeStamp = now
+	gen.LastTimeStamp = now
 }
 
-func (g *SnowflakeGenerator) construct(parts ...int64) string {
+func (gen *SnowflakeGenerator) construct(parts ...int64) string {
 	var result string
 	for _, part := range parts {
 		result += fmt.Sprintf("%d", part)
@@ -45,26 +71,35 @@ func (g *SnowflakeGenerator) construct(parts ...int64) string {
 	return result
 }
 
-func (g *SnowflakeGenerator) hash(s string) string {
+func (gen *SnowflakeGenerator) hash(s string) string {
 	hasher := sha512.New()
 	hasher.Write([]byte(s))
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
-func (g *SnowflakeGenerator) Generate(t time.Time) string {
-	// g.mu.Lock()
-	// defer g.mu.Unlock()
+func (gen *SnowflakeGenerator) GetRandomNumber() (int64, error) {
+	if !gen.UseRandom {
+		return big.NewInt(1<<63 - 1).Int64(), nil
+	}
+	if gen.UseChannel {
+		return <-gen.BufferChan, nil
+	}
+	max := big.NewInt(1<<63 - 1)
+	b, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return 0, err
+	}
+	return b.Int64(), nil
+}
 
-	// now := t.UnixNano() / int64(time.Millisecond)
-	// g.updateSequence(t, now)
+func (gen *SnowflakeGenerator) Generate(t time.Time) (string, error) {
+	now := t.UnixNano() / int64(time.Millisecond)
+	gen.updateSequence(t, now)
 
-	// random, err := utils.GenerateCryptoRandomNumber(0, 1)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Error generating random number: %v", err))
-	// }
-
-	// time.Sleep(2 * time.Millisecond)
-	// constructed := g.construct(now, int64(g.id), g.sequence, random)
-	// return g.hash(constructed)
-	return strings.Repeat("1", 128)
+	random, err := gen.GetRandomNumber()
+	if err != nil {
+		return "", err
+	}
+	constructed := gen.construct(now, int64(gen.ID), gen.Sequence, random)
+	return gen.hash(constructed), nil
 }
