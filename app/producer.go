@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,13 +13,13 @@ import (
 type Message = string
 
 type ApplicationConfig struct {
-	UseGeneratorBuffer bool
-	UseRandom          bool
+	GeneratorConfig generator.SnowflakeGeneratorConfig
+	UseRandom       bool
 }
 
 type Application struct {
 	brokers []*broker.RabbitMQBroker
-	gen     generator.UUIDGenerator
+	gen     generator.Generator
 	config  ApplicationConfig
 }
 
@@ -26,10 +27,9 @@ func NewApplication(brokersHost []string, config ApplicationConfig) *Application
 	app := &Application{
 		brokers: make([]*broker.RabbitMQBroker, len(brokersHost)),
 		gen: generator.NewSnowflakeGenerator(generator.SnowflakeGeneratorConfig{
-			ID:        1,
-			Epoch:     time.Now(),
-			UseRandom: config.UseRandom,
-			UseBuffer: config.UseGeneratorBuffer,
+			ID:              1,
+			Epoch:           time.Now(),
+			GeneratorConfig: config.GeneratorConfig.GeneratorConfig,
 		}),
 		config: config,
 	}
@@ -61,12 +61,16 @@ func (app *Application) Run(queueName string, numUUIDs int) error {
 
 		go func() {
 			for i := 0; i < numUUIDs/workerCount; i++ {
-				random, err := app.gen.Generate(time.Now())
-				if err != nil {
-					i -= 1
-					continue
+				if app.config.UseRandom {
+					random, err := app.gen.Generate(time.Now())
+					if err != nil {
+						i -= 1
+						continue
+					}
+					uuids <- random
+				} else {
+					uuids <- strings.Repeat("1", 128)
 				}
-				uuids <- random
 			}
 			close(uuids)
 		}()

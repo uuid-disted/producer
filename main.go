@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/uuid-disted/producer/app"
+	"github.com/uuid-disted/producer/internal/services/generator"
 )
 
 func main() {
 	brokersFile := flag.String("f", "brokers.txt", "The file containing host address of RabbitMQ brokers IP")
-	useGeneratorBuffer := flag.Bool("buffer", false, "Use generator buffer")
-	useRandom := flag.Bool("random", false, "Use random number generation")
-	uuidNumber := flag.Int("n", 1000, "The number of UUIDs that must be generated overall")
+	useGeneratorBuffer := flag.Bool("buffer", true, "Use generator buffer")
+	useRandom := flag.Bool("random", true, "Use random number generation")
+	uuidNumber := flag.Int("n", 1000000, "The number of UUIDs that must be generated overall")
 
 	flag.Parse()
 
@@ -24,8 +26,14 @@ func main() {
 	}
 
 	config := app.ApplicationConfig{
-		UseGeneratorBuffer: *useGeneratorBuffer,
-		UseRandom:          *useRandom,
+		UseRandom: *useRandom,
+		GeneratorConfig: generator.SnowflakeGeneratorConfig{
+			ID:    1,
+			Epoch: time.Now(),
+			GeneratorConfig: generator.GeneratorConfig{
+				UseBuffer: *useGeneratorBuffer,
+			},
+		},
 	}
 
 	app := app.NewApplication(brokersHost, config)

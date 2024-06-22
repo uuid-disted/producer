@@ -2,6 +2,10 @@ package generator
 
 import "time"
 
-type UUIDGenerator interface {
+type GeneratorConfig struct {
+	UseBuffer bool
+}
+
+type Generator interface {
 	Generate(t time.Time) (string, error)
 }

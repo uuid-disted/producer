@@ -13,31 +13,28 @@ type SnowflakeGenerator struct {
 	Epoch         time.Time
 	Sequence      int64
 	LastTimeStamp int64
-	UseChannel    bool
+	UseBuffer     bool
 	BufferChan    chan int64
-	UseRandom     bool
 }
 
 type SnowflakeGeneratorConfig struct {
-	ID        int
-	Epoch     time.Time
-	UseRandom bool
-	UseBuffer bool
+	GeneratorConfig
+	ID    int
+	Epoch time.Time
 }
 
 func NewSnowflakeGenerator(config SnowflakeGeneratorConfig) *SnowflakeGenerator {
 	gen := &SnowflakeGenerator{
-		ID:         config.ID,
-		Epoch:      config.Epoch,
-		UseChannel: config.UseBuffer,
-		UseRandom:  config.UseRandom,
+		ID:        config.ID,
+		Epoch:     config.Epoch,
+		UseBuffer: config.UseBuffer,
 	}
 
-	if gen.UseRandom && gen.UseChannel {
+	if config.UseBuffer {
 		gen.BufferChan = make(chan int64, 1000)
 		go func() {
 			for {
-				n, err := gen.GetRandomNumber()
+				n, err := gen.random()
 				if err != nil {
 					continue
 				}
@@ -77,13 +74,7 @@ func (gen *SnowflakeGenerator) hash(s string) string {
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
-func (gen *SnowflakeGenerator) GetRandomNumber() (int64, error) {
-	if !gen.UseRandom {
-		return big.NewInt(1<<63 - 1).Int64(), nil
-	}
-	if gen.UseChannel {
-		return <-gen.BufferChan, nil
-	}
+func (gen *SnowflakeGenerator) random() (int64, error) {
 	max := big.NewInt(1<<63 - 1)
 	b, err := rand.Int(rand.Reader, max)
 	if err != nil {
@@ -92,11 +83,19 @@ func (gen *SnowflakeGenerator) GetRandomNumber() (int64, error) {
 	return b.Int64(), nil
 }
 
+func (gen *SnowflakeGenerator) GetRandom() (int64, error) {
+	if gen.UseBuffer {
+		return <-gen.BufferChan, nil
+	} else {
+		return gen.random()
+	}
+}
+
 func (gen *SnowflakeGenerator) Generate(t time.Time) (string, error) {
 	now := t.UnixNano() / int64(time.Millisecond)
 	gen.updateSequence(t, now)
 
-	random, err := gen.GetRandomNumber()
+	random, err := gen.random()
 	if err != nil {
 		return "", err
 	}
